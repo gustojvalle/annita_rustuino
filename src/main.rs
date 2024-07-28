@@ -14,12 +14,19 @@ mod board {
     pub mod board;
 }
 
+mod coffee_machine {
+    pub mod config;
+}
+
 mod connectivity {
     pub mod connectivity;
 }
 mod functional {
     pub mod espresso;
     pub mod espresso_state;
+}
+mod actuators {
+    pub mod boiler;
 }
 
 use log::info;

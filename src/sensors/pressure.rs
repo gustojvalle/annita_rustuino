@@ -30,7 +30,7 @@ pub fn read_pressure(board: &mut Board) -> Result<f32> {
         calibration: true,
         ..Default::default()
     };
-    let mut adc_pin = AdcChannelDriver::new(&mut adc, &mut board.gpio2, &config)?;
+    let mut adc_pin = AdcChannelDriver::new(&mut adc, &mut board.pressure_pin, &config)?;
     let pressure = convert_volt_to_pressure(adc_pin.read()?);
 
     println!("ADC value: {}bar, {}", pressure, adc_pin.read()?);
