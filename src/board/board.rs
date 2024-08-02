@@ -1,11 +1,13 @@
 use core::fmt;
 use esp_idf_hal::adc::ADC2;
 use esp_idf_hal::gpio::{
-    Gpio10, Gpio2, Gpio4, Gpio5, Gpio6, Gpio7, Gpio8, Gpio9, Input, Output, PinDriver, Pull,
+    AnyInputPin, AnyOutputPin, Gpio0, Gpio1, Gpio10, Gpio2, Gpio4, Gpio5, Gpio6, Gpio7, Gpio8,
+    Gpio9, Input, Output, PinDriver, Pull,
 };
 use esp_idf_svc::hal::modem::Modem;
 use esp_idf_svc::hal::prelude::Peripherals;
 use esp_idf_sys::EspError;
+use rbd_dimmer::{DevicesDimmerManager, DevicesDimmerManagerConfig, DimmerDevice};
 
 #[derive(Debug, PartialEq)]
 pub enum BoillerState {
@@ -46,6 +48,14 @@ impl<'a> Board<'a> {
             Ok(()) => BoillerState::On,
             Err(_) => BoillerState::Off,
         };
+
+        let zc = unsafe { AnyInputPin::new(0) };
+        let d0 = unsafe { AnyOutputPin::new(1) };
+
+        setup_psm(
+            PinDriver::input(zc).unwrap(),
+            PinDriver::output(d0).unwrap(),
+        );
 
         Board {
             adc2,
@@ -90,4 +100,18 @@ impl<'a> fmt::Debug for Board<'a> {
             .field("button_state", &self.button_state)
             .finish()
     }
+}
+
+fn setup_psm(
+    zero_crossing_pin: PinDriver<'static, AnyInputPin, Input>,
+    d0_pin: PinDriver<'static, AnyOutputPin, Output>,
+) {
+    let id = 0;
+    let d = DimmerDevice::new(id, d0_pin);
+    // Create Power management
+    let _ddm = DevicesDimmerManager::init(DevicesDimmerManagerConfig::default_50_hz(
+        zero_crossing_pin,
+        vec![d],
+    ))
+    .unwrap();
 }

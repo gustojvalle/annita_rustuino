@@ -33,6 +33,7 @@ esp-idf-svc = { version = "0.49", default-features = false }
 anyhow      = "=1.0.86"
 esp-idf-hal = "0.44.1"
 once_cell = "1.17"
+rbd_dimmer = "0.2.0"
 
 [dependencies.esp-idf-sys]
 version = "0.35"

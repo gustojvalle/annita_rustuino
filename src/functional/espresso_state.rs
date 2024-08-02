@@ -15,14 +15,15 @@ use crate::{
 use anyhow::Result;
 
 pub struct EspressoStateSnapshot {
-    pressure: f32,
-    boiler_temp: f32,
-    estimated_espresso_flow: f32,
-    time: SystemTime,
-    elapsed_time_from_last_read: Duration,
-    estimated_weight: f32,
-    measured_flow: flow::Flow,
-    espresso_flow: f32,
+    pub pressure: f32,
+    pub boiler_temp: f32,
+    pub estimated_espresso_flow: f32,
+    pub time: SystemTime,
+    pub elapsed_time_from_last_read: Duration,
+    pub estimated_weight: f32,
+    pub measured_flow: flow::Flow,
+    pub espresso_flow: f32,
+    pub pressure_change_speed: f32,
 }
 impl fmt::Debug for EspressoStateSnapshot {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -38,6 +39,7 @@ impl fmt::Debug for EspressoStateSnapshot {
             .field("estimated_weight", &self.estimated_weight) // Assuming Modem doesn't implement Debug
             .field("measured_flow", &self.measured_flow) // Assuming Modem doesn't implement Debug
             .field("espresso_flow", &self.espresso_flow) // Assuming Modem doesn't implement Debug
+            .field("pressure_change_speed", &self.pressure_change_speed) // Assuming Modem doesn't implement Debug
             .finish()
     }
 }
@@ -63,6 +65,8 @@ impl EspressoStateSnapshot {
             time: current_time,
             elapsed_time_from_last_read: calculate_elapsed_time_from_last_snapshot(current_time)?,
             espresso_flow: calculate_espresso_flow()?,
+            // TODO calculate pressure change speed
+            pressure_change_speed: 0.0,
         })
     }
 }
@@ -86,6 +90,22 @@ fn calculate_elapsed_time_from_last_snapshot(current_time: SystemTime) -> Result
         unreachable!("failed to get stack");
     }
 }
+fn calculate_presssure_change_speed(
+    current_pressure: f32,
+    current_time: SystemTime,
+) -> Result<f32> {
+    if let Some(stack) = ESPRESSO_SYSTEM_STACK.get() {
+        let stack = stack.lock().expect("Failed to acquire lock");
+        let duration = stack[stack.len() - 1]
+            .time
+            .duration_since(current_time)
+            .unwrap();
+        return Ok((current_pressure - stack[stack.len() - 1].pressure) / duration.as_secs_f32());
+    } else {
+        unreachable!("failed to get stack");
+    }
+}
+
 fn calculated_weight() {
     // TODO calculate the weight with the flow in and flow out.
 }

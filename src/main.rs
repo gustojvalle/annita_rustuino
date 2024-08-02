@@ -27,6 +27,7 @@ mod functional {
 }
 mod actuators {
     pub mod boiler;
+    pub mod pump;
 }
 
 use log::info;
