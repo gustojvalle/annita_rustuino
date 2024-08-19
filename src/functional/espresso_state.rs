@@ -1,9 +1,11 @@
 use std::{
+    error::Error,
     fmt,
     time::{Duration, SystemTime},
 };
 
 use crate::{
+    actuators::{psm::calculate_cps, pump::get_pump_flow},
     board::board::Board,
     sensors::{
         flow::{self, calculate_espresso_flow},
@@ -13,7 +15,9 @@ use crate::{
     ESPRESSO_SYSTEM_STACK,
 };
 use anyhow::Result;
+use serde::Serialize;
 
+#[derive(Clone, Serialize)]
 pub struct EspressoStateSnapshot {
     pub pressure: f32,
     pub boiler_temp: f32,
@@ -24,6 +28,7 @@ pub struct EspressoStateSnapshot {
     pub measured_flow: flow::Flow,
     pub espresso_flow: f32,
     pub pressure_change_speed: f32,
+    pub pump_flow: f32,
 }
 impl fmt::Debug for EspressoStateSnapshot {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -40,6 +45,7 @@ impl fmt::Debug for EspressoStateSnapshot {
             .field("measured_flow", &self.measured_flow) // Assuming Modem doesn't implement Debug
             .field("espresso_flow", &self.espresso_flow) // Assuming Modem doesn't implement Debug
             .field("pressure_change_speed", &self.pressure_change_speed) // Assuming Modem doesn't implement Debug
+            .field("pump_flow", &self.pump_flow) // Assuming Modem doesn't implement Debug
             .finish()
     }
 }
@@ -53,7 +59,12 @@ impl EspressoStateSnapshot {
             Ok(temp) => temp,
         };
         let current_time = SystemTime::now();
-        Ok(EspressoStateSnapshot {
+        let cps = calculate_cps();
+        let elapsed_time = match calculate_elapsed_time_from_last_snapshot(current_time) {
+            Ok(time) => time,
+            Err(err) => Duration::new(0, 0),
+        };
+        let espresso_snapshot = EspressoStateSnapshot {
             pressure: pressure,
             boiler_temp: temperature::read_temperature()?,
             estimated_espresso_flow: 0.0,
@@ -63,11 +74,13 @@ impl EspressoStateSnapshot {
                 exit: 0.0,
             },
             time: current_time,
-            elapsed_time_from_last_read: calculate_elapsed_time_from_last_snapshot(current_time)?,
+            elapsed_time_from_last_read: elapsed_time,
             espresso_flow: calculate_espresso_flow()?,
             // TODO calculate pressure change speed
             pressure_change_speed: 0.0,
-        })
+            pump_flow: get_pump_flow(cps, &pressure),
+        };
+        Ok(espresso_snapshot)
     }
 }
 pub fn push_snapshot(snapshot: EspressoStateSnapshot) {
@@ -79,15 +92,26 @@ pub fn push_snapshot(snapshot: EspressoStateSnapshot) {
     }
 }
 
+pub fn pop_snapshot() {
+    if let Some(stack) = ESPRESSO_SYSTEM_STACK.get() {
+        let mut stack = stack.lock().expect("Failed to acquire lock");
+        stack.pop();
+    } else {
+        eprintln!("ESPRESSO_SYSTEM_STACK is not initialized");
+    }
+}
+
 fn calculate_elapsed_time_from_last_snapshot(current_time: SystemTime) -> Result<Duration> {
     if let Some(stack) = ESPRESSO_SYSTEM_STACK.get() {
         let stack = stack.lock().expect("Failed to acquire lock");
-        return Ok(stack[stack.len() - 1]
-            .time
-            .duration_since(current_time)
+        if stack.len() == 0 {
+            return Ok(Duration::new(0, 0));
+        }
+        return Ok(current_time
+            .duration_since(stack[stack.len() - 1].time)
             .unwrap());
     } else {
-        unreachable!("failed to get stack");
+        unreachable!("failed to get stack")
     }
 }
 fn calculate_presssure_change_speed(

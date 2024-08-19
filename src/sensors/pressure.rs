@@ -33,6 +33,6 @@ pub fn read_pressure(board: &mut Board) -> Result<f32> {
     let mut adc_pin = AdcChannelDriver::new(&mut adc, &mut board.pressure_pin, &config)?;
     let pressure = convert_volt_to_pressure(adc_pin.read()?);
 
-    println!("ADC value: {}bar, {}", pressure, adc_pin.read()?);
+    // println!("ADC value: {}bar, {}", pressure, adc_pin.read()?);
     return Ok(pressure);
 }

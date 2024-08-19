@@ -1,6 +1,7 @@
 use anyhow::Result;
+use serde::Serialize;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Flow {
     pub enter: f32,
     pub exit: f32,

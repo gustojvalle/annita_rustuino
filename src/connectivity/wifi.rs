@@ -1,38 +1,41 @@
-use esp_idf_svc::eventloop::EspSystemEventLoop;
-use esp_idf_svc::hal::peripheral;
-use esp_idf_svc::wifi::{AuthMethod, BlockingWifi, ClientConfiguration, Configuration, EspWifi};
 use anyhow::{bail, Result};
-use log::info;
+use esp_idf_svc::{
+    eventloop::EspSystemEventLoop,
+    wifi::{AuthMethod, BlockingWifi, ClientConfiguration, Configuration, EspWifi},
+};
 
-pub fn wifi(
+use crate::board::board::Board;
+
+pub fn wifi<'a>(
     ssid: &str,
     pass: &str,
-    modem: impl peripheral::Peripheral<P = esp_idf_svc::hal::modem::Modem> + 'static,
+    board: &'a mut Board,
     sysloop: EspSystemEventLoop,
-) -> Result<Box<EspWifi<'static>>> {
+) -> Result<EspWifi<'a>> {
     let mut auth_method = AuthMethod::WPA2Personal;
     if ssid.is_empty() {
         bail!("Missing WiFi name")
     }
     if pass.is_empty() {
         auth_method = AuthMethod::None;
-        info!("Wifi password is empty");
+        print!("Wifi password is empty");
     }
-    let mut esp_wifi = EspWifi::new(modem, sysloop.clone(), None)?;
+
+    let mut esp_wifi = EspWifi::new(&mut board.modem, sysloop.clone(), None)?;
 
     let mut wifi = BlockingWifi::wrap(&mut esp_wifi, sysloop)?;
 
     wifi.set_configuration(&Configuration::Client(ClientConfiguration::default()))?;
 
-    info!("Starting wifi...");
+    print!("Starting wifi...");
 
     wifi.start()?;
 
-    info!("Scanning...");
+    print!("Scanning...");
 
     let ap_infos = wifi.scan()?;
 
-    info!(
+    print!(
         "Scanned results {:?}",
         ap_infos.clone().into_iter().map(|network| network.ssid)
     );
@@ -40,13 +43,13 @@ pub fn wifi(
     let ours = ap_infos.into_iter().find(|a| a.ssid == ssid);
 
     let channel = if let Some(ours) = ours {
-        info!(
+        print!(
             "Found configured access point {} on channel {}",
             ssid, ours.channel
         );
         Some(ours.channel)
     } else {
-        info!(
+        print!(
             "Configured access point {} not found during scanning, will go with unknown channel",
             ssid
         );
@@ -65,17 +68,19 @@ pub fn wifi(
         ..Default::default()
     }))?;
 
-    info!("Connecting wifi...");
+    print!("Connecting wifi...");
 
     wifi.connect()?;
 
-    info!("Waiting for DHCP lease...");
+    print!("Waiting for DHCP lease...");
 
     wifi.wait_netif_up()?;
 
     let ip_info = wifi.wifi().sta_netif().get_ip_info()?;
 
-    info!("Wifi DHCP info: {:?}", ip_info);
+    print!("Wifi DHCP info: {:?}", ip_info);
 
-    Ok(Box::new(esp_wifi))
+    Ok(esp_wifi)
 }
+
+fn bluetooth() {}
